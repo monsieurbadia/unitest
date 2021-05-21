@@ -1,0 +1,19 @@
+[package]
+name = "unitest"
+version = "0.1.0"
+authors = ["monsieurbadia <iam@monsieurbadia.com>"]
+edition = "2018"
+
+description = """
+small and compact testing framework
+"""
+
+[lib]
+name = "unitest"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+
+[dev-dependencies]
+criterion = "0.3"
