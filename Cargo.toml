@@ -1,6 +1,7 @@
 [workspace]
 members = [
 	"framework/unitest",
+	"framework/unitest-native",
 ]
 
 exclude = [

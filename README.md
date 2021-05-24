@@ -1,8 +1,18 @@
 # unitest
 
-> *small and compact testing framework*
+> *pocket testing framework*
+
+## Goals
+
+* [ ] small and compact
+* [x] generate reports | json
 
 ## Usage
+
+```
+[dependencies]
+unitest = { git = "https://github.com/monsieurbadia/unitest" }
+```
 
 ```rust
 fn main() {}
@@ -14,4 +24,10 @@ unit!(
   test!(should_be_false, must!(falsy: false));
   test!(should_be_catched, must!(die: { panic!() } ));
 );
+```
+
+## Examples
+
+```
+cargo run example testing
 ```

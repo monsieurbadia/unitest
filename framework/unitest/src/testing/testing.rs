@@ -1,54 +1,121 @@
-/// this represents a simple unit test wrapper
-pub macro unit {
-  ( $( $e:item )* ) => { $( $e )* },
-  () => {},
+use std::fmt::Write;
+use std::fs::File;
+use std::thread;
+
+use rayon::prelude::*;
+use rayon::iter::ParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
+use serde::Serialize;
+use uwa::ch::is;
+use uwa::fp::and_then;
+
+use super::state::State;
+use super::store::store;
+use super::test::Test;
+
+pub macro bind {
+  () => (),
 }
 
-/// this represents a test case
+/// represents a main function wrapper
+pub macro run {
+  () => (),
+  ( $e:expr ) => (
+    fn main() {
+      $e();
+    }
+  )
+}
+
+/// this represents a simple unit test wrapper
+pub macro unit {
+  () => (),
+  ( $( $e:expr ) , * ) => ({
+    $( $e(); )*
+    || {
+      // print
+      let mut s = &store().state;
+      let mut state = s.borrow_mut();
+      state.print();
+    }
+  })
+}
+
+/// this represents a test suite
 pub macro test {
-  ( $name:ident , $assertions:expr ) => (
-    #[test]
-    fn $name() { $assertions }
-  ),
-  () => {},
+  () => (),
+  ( $name:ident , $f:expr ) => ({
+    let name = stringify!($name);
+    let first = name.chars().next().unwrap_or('\0');
+
+    if is!(underscore first) {
+      &store().state_mut().inc_skip(1);
+      &store().tests_mut().push(Test::new(name, false));
+    } else {
+      $f();
+      &store().tests_mut().push(Test::new(name, true));
+    }
+
+    || {
+      // print!("out: {:#?}\n", &store().tests_mut());
+    }
+  })
 }
 
 /// this represents an assertion
 pub macro must {
-  ( die : $rhs:expr ) => ({
-    let catched = std::panic::catch_unwind(|| { $rhs; });
+  ( $lhs:expr, $rhs:expr ) => ({
+    if exec!($lhs, $rhs) {
+      &store().state_mut().inc_done(1);
+    } else {
+      &store().state_mut().inc_fail(1);
+    }
 
-    must!(catched.is_err());
+    || {
+
+    }
   }),
-  ( falsy : $rhs:expr ) => ({ assert!(false == $rhs); }),
-  ( truthy : $rhs:expr ) => ({ assert!(true == $rhs); }),
-  ( ne : $lhs:expr , $rhs:expr ) => ({ assert!($lhs != $rhs); }),
-  ( eq : $lhs:expr , $rhs:expr ) => ({ assert!($lhs == $rhs); }),
-  ( $lhs:expr ) => ({ assert!($lhs == true); }),
   () => (),
 }
 
-#[test]
-fn unit_test_must_eq() {
-  assert!(() == must!(eq: 0, 0));
+/// executes
+pub macro exec {
+  ( $a:expr , $b:expr ) => { $a == $b },
+  () => (),
 }
 
-#[test]
-fn unit_test_must_ne() {
-  assert!(() == must!(ne: 1, 0));
-}
+pub macro then {
+  ( export $name:expr, $path:expr ) => ({  
+    let mut tests = &store().tests;
+    let mut tests = tests.borrow();
 
-#[test]
-fn unit_test_must_truthy() {
-  assert!(() == must!(truthy: true));
-}
+    fn serialized(test: &Test, tx: flume::Sender<String>) {
+      let serialized = serde_json::to_string(&test).unwrap();
+      tx.send(serialized).unwrap();
+    }
 
-#[test]
-fn unit_test_must_falsy() {
-  assert!(() == must!(falsy: false));
-}
+    let (tx, rx) = flume::unbounded();
 
-#[test]
-fn unit_test_must_panic() {
-  assert!(() == must!(die: { panic!() }));
+    for test in tests.clone() {
+      let thread_tx = tx.clone();
+      thread::spawn(move || serialized(&test, thread_tx));
+    }
+
+    let mut buf = Vec::with_capacity(tests.len());
+    for tt in 0..tests.len() {
+      buf.push(rx.recv().unwrap());
+    }
+
+    &store().state_mut().json(buf.join(""));
+
+    || {
+      use std::io::Write;
+
+      let pathname = format!("{}/{}.json", $path, $name);
+      let mut file = File::create(pathname).unwrap();
+      let json = format!("{}", *store().state_mut().json_mut());
+
+      file.write_all(json.as_bytes()).unwrap();
+    }
+  }),
 }

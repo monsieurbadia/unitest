@@ -1,7 +1,15 @@
-fn sqrt(x: u64) -> u64 { x * x }
+use unitest::prelude::*;
 
-unit!(
-  test!(integration_test_sqrt_should_be_0, must!(eq: sqrt(0), 0));
-  test!(integration_test_sqrt_should_be_49, must!(eq: sqrt(7), 49));
-  test!(integration_test_sqrt_should_be_falsy, must!(ne: sqrt(7), sqrt(9)));
+fn sqrt(x: u64) -> u64 {
+  x * x
+}
+
+run!(
+  bind!( rayon::prelude::* ),
+  unit!(
+    test!(should_be_0, must!(0, 0)),
+    test!(should_be_49, must!(0, 0)),
+    test!(should_be_false, must!(0, 0)),
+    then!(export "unitest-report", "./examples/out")
+  )
 );
